@@ -32,6 +32,8 @@ dependencies {
 
     implementation("com.microsoft.onnxruntime:onnxruntime:1.20.0")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0")
+
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test:4.0.0")
 }
 
 tasks.withType<Test> {
