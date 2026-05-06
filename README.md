@@ -2,14 +2,15 @@
 
 [TODO: 한 줄 설명 — 예: "환경/관리 조건 9개 피처를 받아 RandomForest 회귀 모델로 작물 수확량을 예측하는 REST API. ML 모델은 ONNX로 export하고 Spring Boot가 ONNX Runtime Java로 직접 추론."]
 
-## 기술 스택
+## 기술 스택 
+<img src="https://img.shields.io/badge/springboot-6DB33F?style=for-the-badge&logo=springboot&logoColor=white"> <img src="https://img.shields.io/badge/Jupyter-F37626?style=for-the-badge&logo=Jupyter&logoColor=white">
+  <img src="https://img.shields.io/badge/scikit learn-F7931E?style=for-the-badge&logo=scikitlearn&logoColor=white"> 
+ <img src="https://img.shields.io/badge/onnx-005CED?style=for-the-badge&logo=onnx&logoColor=white"> <img src="https://img.shields.io/badge/gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white"> <img src="https://img.shields.io/badge/docker-2496ED?style=for-the-badge&logo=docker&logoColor=white"> <img src="https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=Swagger&logoColor=white"> <img src="https://img.shields.io/badge/JUnit5-25A162?style=for-the-badge&logo=JUnit5&logoColor=white">
 
-- **Backend**: Spring Boot 4.0.6, Java 21
-- **ML**: Python 3.12, scikit-learn, ONNX (float32)
-- **빌드**: Gradle (Kotlin DSL)
-- **컨테이너**: Docker (단일 컨테이너, 멀티스테이지 빌드)
-- **API 문서**: Swagger UI (springdoc-openapi)
-- **테스트**: JUnit 5, Mockito, MockMvc
+
+
+
+<!-- <img src="https://img.shields.io/badge/표시할이름-색상?style=for-the-badge&logo=기술스택아이콘&logoColor=white"> -->
 
 ## 아키텍처
 
