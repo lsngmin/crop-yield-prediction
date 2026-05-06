@@ -13,7 +13,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import com.sngmin.cropyieldapi.metrics.InferenceMetrics;
+import com.sngmin.cropyieldapi.model.BatchPredictRequest;
+import com.sngmin.cropyieldapi.model.BatchPredictResponse;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -57,6 +60,55 @@ public class PredictService {
         } catch (RuntimeException e) {
             metrics.incrementError();
             throw e;
+        }
+    }
+
+    public BatchPredictResponse predictBatch(BatchPredictRequest batchReq) {
+        metrics.incrementRequest();
+
+        try {
+            List<PredictRequest> items = batchReq.items();
+            log.info("Batch predict request: count={}", items.size());
+
+            float[][] batchFeatures = new float[items.size()][];
+            for (int i = 0; i < items.size(); i++) {
+                PredictRequest req = items.get(i);
+                validateCategoricals(req);
+                batchFeatures[i] = encoder.encode(req);
+            }
+
+            float[] predictions = metrics.inferenceTimer().record(
+                    () -> runBatchInference(batchFeatures)
+            );
+
+            List<PredictResponse> responses = new ArrayList<>(predictions.length);
+            for (float p : predictions) {
+                responses.add(new PredictResponse((double) p, props.version()));
+            }
+
+            metrics.incrementSuccess();
+            log.info("Batch prediction completed: count={}", responses.size());
+
+            return new BatchPredictResponse(responses, props.version(), responses.size());
+        } catch (RuntimeException e) {
+            metrics.incrementError();
+            throw e;
+        }
+    }
+
+    private float[] runBatchInference(float[][] batchFeatures) {
+        try {
+            try (OnnxTensor tensor = OnnxTensor.createTensor(env, batchFeatures);
+                 OrtSession.Result result = session.run(Map.of(inputName, tensor))) {
+                float[][] output = (float[][]) result.get(0).getValue();
+                float[] predictions = new float[output.length];
+                for (int i = 0; i < output.length; i++) {
+                    predictions[i] = output[i][0];
+                }
+                return predictions;
+            }
+        } catch (OrtException e) {
+            throw new RuntimeException("ONNX batch inference failed", e);
         }
     }
 

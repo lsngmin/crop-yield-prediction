@@ -1,5 +1,7 @@
 package com.sngmin.cropyieldapi.controller;
 
+import com.sngmin.cropyieldapi.model.BatchPredictRequest;
+import com.sngmin.cropyieldapi.model.BatchPredictResponse;
 import com.sngmin.cropyieldapi.model.PredictRequest;
 import com.sngmin.cropyieldapi.model.PredictResponse;
 import com.sngmin.cropyieldapi.service.PredictService;
@@ -21,5 +23,10 @@ public class PredictController {
     public PredictResponse predict(@Valid @RequestBody PredictRequest request) {
         log.info("Received predict request");
         return predictService.predict(request);
+    }
+
+    @PostMapping("/predict/batch")
+    public BatchPredictResponse predictBatch(@Valid @RequestBody BatchPredictRequest request) {
+        return predictService.predictBatch(request);
     }
 }
