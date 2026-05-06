@@ -1,0 +1,31 @@
+# Data files (download manually, see data/README.md)
+data/*
+!data/README.md
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+.env
+
+# Java / Gradle
+.gradle/
+build/
+out/
+*.class
+HELP.md
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (large binaries — keep specific ones if needed)
+# *.onnx
+# *.pkl
