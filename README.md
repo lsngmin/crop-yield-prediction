@@ -14,10 +14,12 @@ ML 모델은 ONNX로 export하고 Spring Boot가 ONNX Runtime Java로 직접 추
 <br>
 
 - **단일 컨테이너 ML 추론**: Python 사이드카 없이 JVM에서 직접 ONNX 추론
+- **배치 throughput 25× 개선**: `/predict/batch`로 단건 대비 처리량 19.9 → 490 pred/s
 - **모델 크기 최적화**: 142MB → 24.6MB, MAE 0.4031 → 0.4015 개선
 - **트러블슈팅**: ONNX TreeEnsembleRegressor float32 제약 대응
-  
+
 ## Quick Start
+
 ### 실행
 
 ```bash
@@ -30,7 +32,9 @@ docker run --rm -p 8080:8080 crop-yield-api
 ```
 > 서버 시작 후 Swagger: http://localhost:8080/swagger-ui.html
 
-### 요청
+### POST /predict — 단일 추론
+
+요청:
 ```bash
 curl -X POST http://localhost:8080/predict \
   -H "Content-Type: application/json" \
@@ -47,11 +51,37 @@ curl -X POST http://localhost:8080/predict \
   }'
 ```
 
-### 응답
+응답:
 ```json
 {
   "predictedYield": 5.732,
   "modelVersion": "v1.0"
+}
+```
+
+### POST /predict/batch — 배치 추론
+
+여러 케이스를 한 번에 처리. `[N, 24]` 텐서로 단일 ONNX 호출 → 단건 대비 약 25배 throughput.
+
+요청:
+```bash
+curl -X POST http://localhost:8080/predict/batch \
+  -H "Content-Type: application/json" \
+  -d '{"items": [
+    {"rainfallMm":500.0,"temperatureCelsius":25.0,"fertilizerUsed":true,"irrigationUsed":true,"daysToHarvest":120,"crop":"Wheat","region":"South","soilType":"Loam","weatherCondition":"Rainy"},
+    {"rainfallMm":200.0,"temperatureCelsius":30.0,"fertilizerUsed":false,"irrigationUsed":true,"daysToHarvest":150,"crop":"Rice","region":"East","soilType":"Clay","weatherCondition":"Sunny"}
+  ]}'
+```
+
+응답:
+```json
+{
+  "predictions": [
+    {"predictedYield": 5.732, "modelVersion": "v1.0"},
+    {"predictedYield": 2.751, "modelVersion": "v1.0"}
+  ],
+  "modelVersion": "v1.0",
+  "count": 2
 }
 ```
 
@@ -88,13 +118,13 @@ kaggle datasets download -d samuelotiattakorah/agriculture-crop-yield -p data/ -
 ### Spring Boot 패턴
 
 - **`@ConfigurationProperties` (record)**: yaml의 `app.model.*` 값을 record로 
-  타입 안전 매핑 — [`ModelProperties.java`](...)
+  타입 안전 매핑 — [`ModelProperties.java`](src/main/java/com/sngmin/cropyieldapi/config/ModelProperties.java)
   
 - **모델 startup 로딩**: `OrtEnvironment`/`OrtSession`을 빈으로 등록해 startup 시 
-  1회 초기화. 첫 요청 latency 제거 + 싱글톤 보장 — [`ModelLoader.java`](...)
+  1회 초기화. 첫 요청 latency 제거 + 싱글톤 보장 — [`ModelLoader.java`](src/main/java/com/sngmin/cropyieldapi/config/ModelLoader.java)
   
 - **`@RestControllerAdvice` 3단계 매핑**: Validation 예외(400) / 비즈니스 예외(400) / 
-  일반 예외(500, 메시지 마스킹) — [`GlobalExceptionHandler.java`](...)
+  일반 예외(500, 메시지 마스킹) — [`GlobalExceptionHandler.java`](src/main/java/com/sngmin/cropyieldapi/exception/GlobalExceptionHandler.java)
   
 - **JNI 자원 관리**: `OnnxTensor`, `OrtSession.Result`는 GC 대상이 아닌 네이티브 자원 → 중첩 try-with-resources로 누수 방지
 
@@ -104,9 +134,10 @@ kaggle datasets download -d samuelotiattakorah/agriculture-crop-yield -p data/ -
         float[][] output = (float[][]) result.get(0).getValue();
         return output[0][0];
     }
-  }
+  }```
 
-  
+- **Observability (Micrometer + Actuator)**: `/actuator/metrics`로 추론 호출 수/성공/실패 카운터, 추론 latency Timer 노출. 메트릭 cardinality 관리를 위해 카테고리 태그 미사용 — [`InferenceMetrics.java`](src/main/java/com/sngmin/cropyieldapi/metrics/InferenceMetrics.java)
+
 ### 입력 → 추론 흐름
 
 1. 카테고리 값 검증 (메타데이터 화이트리스트)
@@ -116,6 +147,41 @@ kaggle datasets download -d samuelotiattakorah/agriculture-crop-yield -p data/ -
 
 [`PredictService.java`](src/main/java/com/sngmin/cropyieldapi/service/PredictService.java)
 
+## Performance
+
+k6 기반 로컬 부하 테스트. 측정 환경: MacBook Air (Apple Silicon), Docker 단일 컨테이너.
+
+### 단건 추론 (POST /predict)
+
+| 지표 | 값 |
+|---|---|
+| p50 | 3.55 ms |
+| p95 | 7.30 ms |
+| p99 | 25.95 ms |
+| error rate | 0.00% |
+
+### 배치 추론 (POST /predict/batch, batch size = 50)
+
+| 지표 | 값 |
+|---|---|
+| p50 | 13.17 ms |
+| p95 | 36.66 ms |
+| p99 | 184.67 ms |
+| **predictions/s** | **490.65** |
+
+### 단건 vs 배치 비교
+
+| | 단건 | 배치 (50) | 비율 |
+|---|---|---|---|
+| 1 prediction당 시간 (p50 기준) | 3.55 ms | 0.26 ms | **13.5× 빠름** |
+| predictions/s | 19.9 | 490.65 | **24.7× 높음** |
+
+배치는 `[N, 24]` 텐서를 단일 ONNX 호출로 처리. HTTP/JSON 직렬화, JNI 경계 통과, ONNX 추론 모두 1회로 압축되어 throughput 약 25배 개선.
+
+**한계**: 로컬 단일 머신 측정이라 절대값 의미 제한적. 상대 비교(단건 vs 배치)에 의미. 프로덕션 측정은 별도 호스트 + 클라우드 환경에서 수행 예정.
+
+자세한 환경/시나리오/임계값: [`performance/results/README.md`](performance/results/README.md)
+  
 ## 테스트 전략
 
 JUnit 5 + Mockito 단위 테스트 3개:
@@ -126,12 +192,7 @@ JUnit 5 + Mockito 단위 테스트 3개:
 | 2 | Service 예외 케이스 | 잘못된 카테고리 → `IllegalArgumentException` (인코딩 도달 전 차단 확인) |
 | 3 | Controller validation | `@WebMvcTest` + `MockMvc`로 웹 레이어 격리. 필드 누락 → 400 응답 검증 |
 
-→  ONNX 파일 없이 동작하는 순수 단위 테스트다. 모델 변경/재학습 시에도 테스트 영향 X
-
-### 의도적으로 테스트하지 않은 것
-- **통합 테스트**: v1 스펙 외 (스코프 제어). v2로 미룸
-- **모델 정확도**: ML 영역, 노트북에서 별도 검증 (MAE 0.40)
-- **부하 테스트**: 베이스라인 단계엔 미적용
+->  ONNX 파일 없이 동작하는 순수 단위 테스트다. 모델 변경/재학습 시에도 테스트 영향 X
 
 ## 왜 이렇게 만들었나
 
@@ -158,24 +219,3 @@ float64 입력으로 더 높은 정밀도를 시도했으나, ONNX의 `TreeEnsem
 정규화를 강하게 적용할수록 모델 크기뿐 아니라 MAE도 함께 개선되는 결과가 나왔다. 
 합성 데이터의 강한 신호 특성상 기본값(max_depth=None)으로 학습한 트리는 
 노이즈까지 외워 과적합한 것으로 추정한다.
-
-## 향후 계획 (v2)
-
-v1은 단일 컨테이너 ML 서빙 검증이 목표. 운영 기능과 ML 시스템 심화는 v2로 분리.
-
-### 모델 서빙 심화
-- **부하 테스트 + 성능 측정**: k6 기반 p50/p95/p99 latency 측정, 모델 로드 방식 비교
-- **모델 버전 관리**: 응답에 모델 버전 메타데이터, 다른 버전 hot-reload
-- **배치 추론 API**: `POST /predict/batch`로 다건 예측, 단건 vs 배치 성능 비교
-- **추론 메트릭**: Micrometer로 추론 시간/호출 횟수 수집, `/actuator/metrics` 노출
-
-### ML 시스템
-- **전처리 파이프라인 통합**: sklearn Pipeline으로 학습/추론 전처리 일관성 보장
-- **모델 비교**: XGBoost, LightGBM 벤치마크 (정확도 + 추론 속도 + 모델 크기)
-- **모델 재학습 파이프라인**: 신규 데이터 누적 시 자동 재학습
-
-### 운영
-- **DB 연동**: 추론 요청/결과 영속화로 모델 모니터링 기반 마련
-- **CI/CD**: GitHub Actions 기반 자동 빌드/테스트
-- **통합 테스트**: Testcontainers로 실제 ONNX 환경 검증
-
