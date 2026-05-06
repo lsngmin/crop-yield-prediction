@@ -7,7 +7,8 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
-
+import com.sngmin.cropyieldapi.metrics.InferenceMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,7 +33,7 @@ public class PredictServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         FeatureMetadata metadata = new FeatureMetadata(
-                List.of(/* 24개 컬럼명 — feature_order.json 그대로 */),
+                List.of(),
                 Map.of(
                         "Crop", List.of("Barley", "Cotton", "Maize", "Rice", "Soybean", "Wheat"),
                         "Region", List.of("East", "North", "South", "West"),
@@ -44,8 +45,10 @@ public class PredictServiceTest {
 
         when(session.getInputNames()).thenReturn(Set.of("X"));
 
-        FeatureEncoder encoder = new FeatureEncoder(metadata);   // ← 추가
-        service = new PredictService(env, session, metadata, encoder, props);   // ← encoder 추가
+        FeatureEncoder encoder = new FeatureEncoder(metadata);
+        InferenceMetrics metrics = new InferenceMetrics(new SimpleMeterRegistry());
+
+        service = new PredictService(env, session, metadata, encoder, props, metrics);
         service.init();
     }
 
@@ -78,7 +81,7 @@ public class PredictServiceTest {
     void predict_invalidCrop() {
         PredictRequest req = new PredictRequest(
                 500.0, 25.0, true, true, 120,
-                "Banana", "South", "Loam", "Rainy"   // ← Banana 없음
+                "Banana", "South", "Loam", "Rainy"
         );
 
         IllegalArgumentException ex = assertThrows(

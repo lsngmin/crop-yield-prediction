@@ -12,9 +12,11 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import com.sngmin.cropyieldapi.metrics.InferenceMetrics;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 @Service
 @Slf4j
@@ -25,6 +27,7 @@ public class PredictService {
     private final FeatureMetadata metadata;
     private final FeatureEncoder encoder;
     private final ModelProperties props;
+    private final InferenceMetrics metrics;
 
     private String inputName;
 
@@ -34,13 +37,27 @@ public class PredictService {
     }
 
     public PredictResponse predict(PredictRequest req) {
-        log.info("Predict request: crop={}, region={}", req.crop(), req.region());
-        validateCategoricals(req);
-        float[] features = encoder.encode(req);
-        float prediction = runInference(features);
-        log.info("Prediction: {} ton/ha", prediction);
+        metrics.incrementRequest();
 
-        return new PredictResponse((double) prediction, props.version());
+        try {
+            log.info("Predict request: crop={}, region={}", req.crop(), req.region());
+
+            validateCategoricals(req);
+            float[] features = encoder.encode(req);
+
+            // 추론 시간만 측정 (검증/인코딩 시간 제외)
+            float prediction = metrics.inferenceTimer().record(
+                    (Supplier<Float>) () -> runInference(features)
+            );
+
+            metrics.incrementSuccess();
+            log.info("Prediction: {} ton/ha", prediction);
+
+            return new PredictResponse((double) prediction, props.version());
+        } catch (RuntimeException e) {
+            metrics.incrementError();
+            throw e;
+        }
     }
 
     private void validateCategoricals(PredictRequest req) {

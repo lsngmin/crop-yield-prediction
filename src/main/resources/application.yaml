@@ -10,3 +10,12 @@ app:
     onnx-path: models/crop_yield_rf.onnx
     metadata-path: models/feature_order.json
     version: v1.0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  endpoint:
+    health:
+      show-details: never
