@@ -33,7 +33,32 @@ public class PredictServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         FeatureMetadata metadata = new FeatureMetadata(
-                List.of(),
+                List.of(
+                        "Rainfall_mm",
+                        "Temperature_Celsius",
+                        "Fertilizer_Used",
+                        "Irrigation_Used",
+                        "Days_to_Harvest",
+                        "Crop_Barley",
+                        "Crop_Cotton",
+                        "Crop_Maize",
+                        "Crop_Rice",
+                        "Crop_Soybean",
+                        "Crop_Wheat",
+                        "Region_East",
+                        "Region_North",
+                        "Region_South",
+                        "Region_West",
+                        "Soil_Type_Chalky",
+                        "Soil_Type_Clay",
+                        "Soil_Type_Loam",
+                        "Soil_Type_Peaty",
+                        "Soil_Type_Sandy",
+                        "Soil_Type_Silt",
+                        "Weather_Condition_Cloudy",
+                        "Weather_Condition_Rainy",
+                        "Weather_Condition_Sunny"
+                ),
                 Map.of(
                         "Crop", List.of("Barley", "Cotton", "Maize", "Rice", "Soybean", "Wheat"),
                         "Region", List.of("East", "North", "South", "West"),

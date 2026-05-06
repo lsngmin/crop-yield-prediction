@@ -19,7 +19,6 @@ import com.sngmin.cropyieldapi.model.BatchPredictResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 @Service
 @Slf4j
@@ -48,10 +47,7 @@ public class PredictService {
             validateCategoricals(req);
             float[] features = encoder.encode(req);
 
-            // 추론 시간만 측정 (검증/인코딩 시간 제외)
-            float prediction = metrics.inferenceTimer().record(
-                    (Supplier<Float>) () -> runInference(features)
-            );
+            float prediction = (float) metrics.inferenceTimer().record(() -> runInference(features));
 
             metrics.incrementSuccess();
             log.info("Prediction: {} ton/ha", prediction);
