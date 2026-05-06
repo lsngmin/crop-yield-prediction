@@ -14,7 +14,7 @@ ML 모델은 ONNX로 export하고 Spring Boot가 ONNX Runtime Java로 직접 추
 <br>
 
 - **단일 컨테이너 ML 추론**: Python 사이드카 없이 JVM에서 직접 ONNX 추론
-- **배치 throughput 25× 개선**: `/predict/batch`로 단건 대비 처리량 19.9 → 490 pred/s
+- **배치 throughput 24.7× 개선**: `/predict/batch`에서 `[N, 24]` 텐서를 단일 ONNX 호출로 처리해 19.9 → 490.65 predictions/s
 - **모델 크기 최적화**: 142MB → 24.6MB, MAE 0.4031 → 0.4015 개선
 - **트러블슈팅**: ONNX TreeEnsembleRegressor float32 제약 대응
 
@@ -138,6 +138,12 @@ kaggle datasets download -d samuelotiattakorah/agriculture-crop-yield -p data/ -
 
 - **Observability (Micrometer + Actuator)**: `/actuator/metrics`로 추론 호출 수/성공/실패 카운터, 추론 latency Timer 노출. 메트릭 cardinality 관리를 위해 카테고리 태그 미사용 — [`InferenceMetrics.java`](src/main/java/com/sngmin/cropyieldapi/metrics/InferenceMetrics.java)
 
+  노출 메트릭:
+  - `crop_yield_predict_requests_total`
+  - `crop_yield_predict_success_total`
+  - `crop_yield_predict_errors_total`
+  - `crop_yield_inference_duration`
+
 ### 입력 → 추론 흐름
 
 1. 카테고리 값 검증 (메타데이터 화이트리스트)
@@ -173,7 +179,7 @@ k6 기반 로컬 부하 테스트. 측정 환경: MacBook Air (Apple Silicon), D
 
 | | 단건 | 배치 (50) | 비율 |
 |---|---|---|---|
-| 1 prediction당 시간 (p50 기준) | 3.55 ms | 0.26 ms | **13.5× 빠름** |
+| p50 기준 prediction당 처리 시간 | 3.55 ms | 0.26 ms | **13.5× 낮음** |
 | predictions/s | 19.9 | 490.65 | **24.7× 높음** |
 
 배치는 `[N, 24]` 텐서를 단일 ONNX 호출로 처리. HTTP/JSON 직렬화, JNI 경계 통과, ONNX 추론 모두 1회로 압축되어 throughput 약 25배 개선.
