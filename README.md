@@ -96,9 +96,17 @@ kaggle datasets download -d samuelotiattakorah/agriculture-crop-yield -p data/ -
 - **`@RestControllerAdvice` 3단계 매핑**: Validation 예외(400) / 비즈니스 예외(400) / 
   일반 예외(500, 메시지 마스킹) — [`GlobalExceptionHandler.java`](...)
   
-- **JNI 자원 관리**: `OnnxTensor`/`OrtSession.Result`는 GC 대상이 아닌 네이티브 자원 
-  → 중첩 try-with-resources로 누수 방지
+- **JNI 자원 관리**: `OnnxTensor`, `OrtSession.Result`는 GC 대상이 아닌 네이티브 자원 → 중첩 try-with-resources로 누수 방지
 
+  ```java
+  try (OnnxTensor tensor = OnnxTensor.createTensor(env, input)) {
+    try (OrtSession.Result result = session.run(Map.of(inputName, tensor))) {
+        float[][] output = (float[][]) result.get(0).getValue();
+        return output[0][0];
+    }
+  }
+
+  
 ### 입력 → 추론 흐름
 
 1. 카테고리 값 검증 (메타데이터 화이트리스트)
