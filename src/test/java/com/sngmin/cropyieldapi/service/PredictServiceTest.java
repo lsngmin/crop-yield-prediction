@@ -31,7 +31,6 @@ public class PredictServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        // 메타데이터: 24개 컬럼 + 카테고리 valid 값
         FeatureMetadata metadata = new FeatureMetadata(
                 List.of(/* 24개 컬럼명 — feature_order.json 그대로 */),
                 Map.of(
@@ -45,7 +44,8 @@ public class PredictServiceTest {
 
         when(session.getInputNames()).thenReturn(Set.of("X"));
 
-        service = new PredictService(env, session, metadata, props);
+        FeatureEncoder encoder = new FeatureEncoder(metadata);   // ← 추가
+        service = new PredictService(env, session, metadata, encoder, props);   // ← encoder 추가
         service.init();
     }
 
