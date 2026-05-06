@@ -1,0 +1,10 @@
+.gradle
+build
+.idea
+.git
+.venv
+data
+notebooks
+__pycache__
+*.iml
+.DS_Store
